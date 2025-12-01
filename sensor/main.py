@@ -15,6 +15,36 @@ def discovery(msg):
         key = f"{msg['ip']}:{msg['port']}"
         fogs[key] = time.time()
 
+def measure_latency(ip, port):
+    try:
+        start = time.time()
+        s = socket.socket()
+        s.settimeout(0.4)
+        s.connect((ip, port))
+        s.close()
+        return time.time() - start
+    except:
+        return 999
+    
+def pick_best_fog():
+    best_key = None
+    best_latency = 999
+
+    for key in fogs:
+        ip, port = key.split(":")
+        port = int(port)
+
+        lat = measure_latency(ip, port)
+        print(f"Latency to {ip}:{port} = {lat*1000:.1f} ms")
+
+        if lat < best_latency:
+            best_latency = lat
+            best_key = key
+
+    return best_key
+
+
+
 def capture():
     cap = cv2.VideoCapture(0)
     ret, frame = cap.read()
@@ -27,12 +57,19 @@ def capture():
 
 def send_loop():
     while True:
-        time.sleep(20)
+        time.sleep(0)
         if not fogs:
             print("No fog found...")
             continue
 
-        best = min(fogs, key=lambda k: socket.gethostbyname(k.split(':')[0]) or '999')
+        best = pick_best_fog()
+        
+        
+        if not best:
+            print("No fog available")
+            continue
+        
+        print("found fogs ",fogs)
         ip, port = best.split(':')
 
         try:
@@ -53,7 +90,7 @@ def send_loop():
             print(f"Result: {result['message']} (Confidence: {result['confidence']})")
 
             # FIRE DETECTED → ACTIVATE WATER PUMP!
-            if result["fire"]:
+            if result["fire"] and result['confidence'] > 0.7:
                 print("FIRE DETECTED! ACTIVATING WATER PUMP NOW!")
                 print("PUMP ON – Extinguishing fire...")
             else:

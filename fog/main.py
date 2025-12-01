@@ -1,4 +1,4 @@
-# fog/main.py
+# fog/main.py  ← FINAL FIXED VERSION
 import threading
 import socket
 import json
@@ -14,6 +14,27 @@ import base64
 current_load = 0
 other_fogs = {}
 
+
+def safe_recv(sock, timeout=5):
+    """Receive all data until we get a complete JSON (prevents partial recv)"""
+    sock.settimeout(timeout)
+    data = b""
+    while True:
+        try:
+            chunk = sock.recv(4096)
+            if not chunk:
+                break
+            data += chunk
+            # Small JSON result → stop when we see closing brace/bracket
+            if len(data) > 20 and (data.endswith(b'}') or data.endswith(b']')):
+                break
+        except socket.timeout:
+            break
+        except:
+            break
+    return data
+
+
 def announce():
     while True:
         send_announce({
@@ -24,35 +45,31 @@ def announce():
         })
         time.sleep(5)
 
+
 def discovery(msg):
     if msg["type"] == "fog" and msg["ip"] != get_local_ip():
         key = f"{msg['ip']}:{msg['port']}"
         other_fogs[key] = {"load": msg["load"], "last": time.time()}
-        # Update WRR weights
         loads = {k: v["load"] for k, v in other_fogs.items() if time.time() - v["last"] < 15}
         loads[f"{get_local_ip()}:{FOG_TCP_PORT}"] = current_load
         balancer.update_weights(loads)
+
 
 def handle_client(client):
     global current_load
     current_load += 1
     start_time = time.time()
-    result = {"fire": False, "message": "Error"}
-    
+    result = {"fire": False, "message": "Error", "confidence": 0.0}
+    forwarded = False
 
     try:
-        data = json.loads(client.recv(1024*1024).decode())
-        b64 = data["image"]
+        raw = safe_recv(client)
+        data = json.loads(raw.decode())
 
-        try:
-            image_bytes = base64.b64decode(b64)
-        except Exception:
-            raise ValueError("Invalid base64 image")
+        image_bytes = base64.b64decode(data["image"])
+        sensor_loc = data.get("location", {"lat": 34.75, "lon": 10.76})
+        sensor_id = data.get("sensor_id", "Unknown")
 
-        image = image_bytes  # pass raw bytes to detect_fire
-        sensor_loc = data.get("location")
-
-        # WRR Decision
         target_fog = balancer.choose_fog()
         my_id = f"{get_local_ip()}:{FOG_TCP_PORT}"
 
@@ -60,21 +77,24 @@ def handle_client(client):
             ip, port = target_fog.split(':')
             with socket.socket() as fwd:
                 fwd.connect((ip, int(port)))
-                fwd.sendall(json.dumps(data).encode())
-                result = json.loads(fwd.recv(1024*1024).decode())
+                fwd.sendall(raw) 
+                result_raw = safe_recv(fwd)          
+                result = json.loads(result_raw.decode())
             forwarded = True
         else:
-            result = detect_fire(image)
+            result = detect_fire(image_bytes)
             forwarded = False
 
+        # Send result back to sensor
         client.sendall(json.dumps(result).encode())
+        time.sleep(0.01) 
 
-        # Send to ThingsBoard
         publish_to_thingsboard({
             "fire": result["fire"],
-            "confidence": result["confidence"],
+            "confidence": result.get("confidence", 0.0),
             "sensor_lat": sensor_loc["lat"],
             "sensor_lon": sensor_loc["lon"],
+            "sensor_id": sensor_id,
             "fog_ip": get_local_ip(),
             "response_time": round(time.time() - start_time, 2),
             "forwarded": forwarded
@@ -84,9 +104,9 @@ def handle_client(client):
         print("Fog error:", e)
     finally:
         current_load -= 1
-        my_id = f"{get_local_ip()}:{FOG_TCP_PORT}"
-        balancer.release(my_id)
+        balancer.release(f"{get_local_ip()}:{FOG_TCP_PORT}")
         client.close()
+
 
 # Start
 print(f"Fog Node → {get_local_ip()}:{FOG_TCP_PORT}")
