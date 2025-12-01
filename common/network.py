@@ -23,7 +23,7 @@ def listen_multicast(callback):
         except:
             pass
 
-def get_simulated_gps():
-    lat = 34.7260073 + np.random.uniform(-0.05, 0.05)
-    lon = 10.7137492 + np.random.uniform(-0.05, 0.05)
-    return round(lat, 6), round(lon, 6)
+# def get_simulated_gps():
+#     lat = 34.7260073 + np.random.uniform(-0.05, 0.05)
+#     lon = 10.7137492 + np.random.uniform(-0.05, 0.05)
+#     return round(lat, 6), round(lon, 6)

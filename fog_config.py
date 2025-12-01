@@ -13,6 +13,10 @@ def get_local_ip():
     except:
         return '127.0.0.1'
 
+FOG_ID  = "SENSOR_1"
+FOG_LAT = 35.7260073
+FOG_LON = 10.7137492
+
 # Network
 MULTICAST_GROUP = '224.0.0.251'
 MULTICAST_PORT = 12345

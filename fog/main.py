@@ -3,9 +3,8 @@ import threading
 import socket
 import json
 import time
-import psutil
 from fog_config import *
-from common.network import send_announce, listen_multicast, get_simulated_gps
+from common.network import send_announce, listen_multicast
 from common.wrr_balancer import balancer
 from fog.fire_detector import detect_fire
 from cloud.mqtt_publisher import publish_to_thingsboard
@@ -17,12 +16,11 @@ other_fogs = {}
 
 def announce():
     while True:
-        cpu = psutil.cpu_percent()
         send_announce({
             "type": "fog",
             "ip": get_local_ip(),
             "port": FOG_TCP_PORT,
-            "load": current_load + cpu / 20
+            "load": current_load
         })
         time.sleep(5)
 
@@ -32,7 +30,7 @@ def discovery(msg):
         other_fogs[key] = {"load": msg["load"], "last": time.time()}
         # Update WRR weights
         loads = {k: v["load"] for k, v in other_fogs.items() if time.time() - v["last"] < 15}
-        loads[f"{get_local_ip()}:{FOG_TCP_PORT}"] = current_load + psutil.cpu_percent()/20
+        loads[f"{get_local_ip()}:{FOG_TCP_PORT}"] = current_load
         balancer.update_weights(loads)
 
 def handle_client(client):
@@ -40,7 +38,7 @@ def handle_client(client):
     current_load += 1
     start_time = time.time()
     result = {"fire": False, "message": "Error"}
-    sensor_loc = {"lat": 34.75, "lon": 10.76}
+    
 
     try:
         data = json.loads(client.recv(1024*1024).decode())
@@ -52,7 +50,7 @@ def handle_client(client):
             raise ValueError("Invalid base64 image")
 
         image = image_bytes  # pass raw bytes to detect_fire
-        sensor_loc = data.get("location", sensor_loc)
+        sensor_loc = data.get("location")
 
         # WRR Decision
         target_fog = balancer.choose_fog()

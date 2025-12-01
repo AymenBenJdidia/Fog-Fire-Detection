@@ -4,7 +4,7 @@ import socket
 import time
 import cv2
 import base64
-from common.network import listen_multicast, send_announce, get_simulated_gps
+from common.network import listen_multicast, send_announce
 from sensor_config import *
 import json
 
@@ -34,8 +34,6 @@ def send_loop():
 
         best = min(fogs, key=lambda k: socket.gethostbyname(k.split(':')[0]) or '999')
         ip, port = best.split(':')
-        lat, lon = get_simulated_gps()
-        print(f"Sending to {ip} | Location: {lat}, {lon}")
 
         try:
             img = capture()
