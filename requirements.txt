@@ -1,5 +1,4 @@
 paho-mqtt
-psutil
-geocoder
+ultralytics
 opencv-python
-numpy
+python-dotenv

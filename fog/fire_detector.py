@@ -1,51 +1,54 @@
-# fog/fire_detector.py
 from ultralytics import YOLO
 import cv2
-import time
-import numpy as np
-from PIL import Image
 import io
+from PIL import Image
+import numpy as np
+import time
 
-# Load the YOLO model once (important!)
-model = YOLO("fog/fire_model.pt")
+model = YOLO("fog/fire_model.pt") 
 
-def detect_fire(image_bytes) -> dict:
-    """
-    image_data: base64 string OR file path depending on how you call it.
-    Returns detection results.
-    """
+def detect_fire(image_bytes):
+    start = time.time()
 
-    start_time = time.time()
+    # Convert bytes → OpenCV image
+    img_pil = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+    img = cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
 
-    # Convert image_data (path) → image array
-    img = Image.open(io.BytesIO(image_bytes))
-    if img is None:
-        return {
-            "fire": False,
-            "confidence": 0.0,
-            "message": "Invalid image input",
-            "timestamp": time.time()
-        }
+    # Run YOLO
+    results = model(img, verbose=False)[0]
 
-    # Run detection
-    results = model(img, stream=True)
+    fire = False
+    conf = 0.0
 
-    fire_detected = False
-    best_confidence = 0.0
+    # Draw boxes
+    for box in results.boxes:
+        cls = int(box.cls[0])
+        confidence = float(box.conf[0])
+        x1, y1, x2, y2 = map(int, box.xyxy[0])
 
-    for r in results:
-        for box in r.boxes:
-            cls = int(box.cls[0])
-            conf = float(box.conf[0])
+        if cls == 0:  # fire class
+            fire = True
+            conf = max(conf, confidence)
 
-            # Your model has only 1 class: 'fire'
-            if cls == 0 and conf > best_confidence:
-                best_confidence = conf
-                fire_detected = True
+            # Draw detection box
+            cv2.rectangle(img, (x1, y1), (x2, y2), (0, 0, 255), 2)
+            cv2.putText(
+                img,
+                f"FIRE {confidence:.2f}",
+                (x1, y1 - 10),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.7,
+                (0, 0, 255),
+                2
+            )
+
+    # Show image on fog node
+    cv2.imshow("Fog Fire Detection", img)
+    cv2.waitKey(1)
 
     return {
-        "fire": fire_detected,
-        "confidence": round(best_confidence, 3),
-        "message": "FIRE DETECTED!" if fire_detected else "No fire",
-        "timestamp": start_time
+        "fire": fire,
+        "confidence": round(conf, 3),
+        "message": "FIRE DETECTED!" if fire else "No fire",
+        "processing_time": round(time.time() - start, 3)
     }
