@@ -12,7 +12,7 @@ def get_local_ip():
         return "127.0.0.1"
 
 
-FOG_ID="Fog_2"
-BROKER_IP = "192.168.1.53"               
+FOG_ID="Fog_1"
+BROKER_IP = "127.0.0.1"               
 THINGSBOARD_HOST = "demo.thingsboard.io"
 THINGSBOARD_TOKEN = os.getenv("FOG_TOKEN")

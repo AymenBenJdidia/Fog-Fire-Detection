@@ -40,7 +40,7 @@ print(f"[{SENSOR_ID}] Sensor started – located at {SENSOR_LAT}, {SENSOR_LON}")
 while True:
     img = capture()
     if img is None:
-        time.sleep(20)
+        time.sleep(5)
         continue
 
     payload = {
@@ -52,4 +52,4 @@ while True:
 
     client.publish("fire/image", json.dumps(payload), qos=1)
     print(f"[{SENSOR_ID}] Image sent")
-    time.sleep(20)
+    time.sleep(5)
