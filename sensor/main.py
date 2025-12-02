@@ -14,7 +14,7 @@ def on_connect(c, u, f, rc):
 
 def on_message(c, u, msg):
     result = json.loads(msg.payload.decode())
-    if result["fire"]:
+    if result["fire"] and (result["confidence"] > 0.6) :
         print(f"\nFIRE DETECTED AT {SENSOR_ID}!")
         print("ACTIVATING WATER PUMP...\n")
     else:
